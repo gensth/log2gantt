@@ -6,9 +6,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.TreeMap;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtilities;
@@ -19,54 +19,67 @@ import org.jfree.data.gantt.TaskSeries;
 import org.jfree.data.gantt.TaskSeriesCollection;
 
 /**
- * Derived from GanttDemo1.java
+ * Parses a <code>auth.log</code> file and generates a gantt chart visualizing
+ * the login sessions of each user.
  *
  * @author Michael Blume
  * @author Max Gensthaler (added: cmd args)
  */
 public class AuthLog2Gantt  {
-    public static void main(final String[] args) {
+	private static final File DEFAULT_LOG_FILE = new File("auth.log");
+	private static final File DEFAULT_IMAGE_FILE = new File("auth_log_gantt.png");
+	private static final int DEFAULT_IMAGE_WIDTH = 500;
+    private static final int DEFAULT_IMAGE_HEIGHT = 270;
+    private static final String DEFAULT_IMAGE_TITLE = null;
+	private static final boolean DEFAULT_FORCE = false;
+
+	public static void main(String[] args) {
     	// default parameter values
-    	File logFile = new File("logdaten.txt");
-    	File imageFile = new File("gantt_chart.png");
-    	boolean force = false;
-    	int width = 500;
-    	int height = 270;
+    	File logFile = DEFAULT_LOG_FILE;
+    	File imageFile = DEFAULT_IMAGE_FILE;
+    	int imageWidth = DEFAULT_IMAGE_WIDTH;
+    	int imageHeight = DEFAULT_IMAGE_HEIGHT;
+    	String imageTitle = DEFAULT_IMAGE_TITLE;
+    	boolean force = DEFAULT_FORCE;
 
     	// args parsing
     	for (int i = 0; i < args.length; i++) {
 	        if (args[i].equals("-h") || args[i].equals("--help")) {
-        		printUsageAndExit();
+        		printUsageAndExit(false);
 	        } else if (args[i].equals("-i")) {
-	        	if (i + 1 < args.length) {
-	        		printUsageAndExit();
+	        	if (i + 1 >= args.length) {
+	        		printUsageAndExit("The '-i' option is missing a filename.");
 	        	}
 	        	logFile = new File(args[++i]);
 	        } else if (args[i].equals("-o")) {
-	        	if (i + 1 < args.length) {
-	        		printUsageAndExit();
+	        	if (i + 1 >= args.length) {
+	        		printUsageAndExit("The '-o' option is missing a filename.");
 	        	}
 	        	imageFile = new File(args[++i]);
 	        } else if (args[i].equals("-ow")) {
-	        	if (i + 1 < args.length) {
-	        		printUsageAndExit();
+	        	if (i + 1 >= args.length) {
+	        		printUsageAndExit("The '-ow' option is missing the number of pixels.");
 	        	}
 	        	try {
-	                width = Integer.parseInt(args[++i]);
+	                imageWidth = Integer.parseInt(args[++i]);
                 } catch (NumberFormatException e) {
-	        		System.err.println("Cannot parse width.");
-	        		printUsageAndExit();
+	        		printUsageAndExit("Cannot parse width.");
                 }
 	        } else if (args[i].equals("-oh")) {
-	        	if (i + 1 < args.length) {
-	        		printUsageAndExit();
+	        	if (i + 1 >= args.length) {
+	        		printUsageAndExit("The '-oh' option is missing the number of pixels.");
 	        	}
 	        	try {
-	                height = Integer.parseInt(args[++i]);
+	                imageHeight = Integer.parseInt(args[++i]);
                 } catch (NumberFormatException e) {
-                	System.err.println("Cannot parse height.");
-	        		printUsageAndExit();
+                	System.err.println();
+	        		printUsageAndExit("Cannot parse height.");
                 }
+	        } else if (args[i].equals("-ot")) {
+	        	if (i + 1 >= args.length) {
+	        		printUsageAndExit("The '-ot' option is missing the title string.");
+	        	}
+	        	imageTitle = args[++i];
 	        } else if (args[i].equals("-f")) {
 	        	force = true;
 	        }
@@ -86,33 +99,42 @@ public class AuthLog2Gantt  {
     		System.err.println("The output image file already exist. Set the force (-f) option to overwrite.");
     		System.exit(1);
     	}
-    	if (width <= 0) {
+    	if (imageWidth <= 0) {
     		System.err.println("Width must be > 0");
     	}
-    	if (height <= 0) {
+    	if (imageHeight <= 0) {
     		System.err.println("Height must be > 0");
     	}
 
     	// doing the work ...
-    	new AuthLog2Gantt(logFile, imageFile, force, width, height);
+    	new AuthLog2Gantt(logFile, imageFile, force, imageWidth, imageHeight, imageTitle);
     }
 
-	private static void printUsageAndExit() {
+	private static void printUsageAndExit(String errMsg) {
+		if (errMsg != null) {
+			System.err.println("Error: " + errMsg);
+			System.err.flush();
+			System.out.println();
+		}
+		printUsageAndExit(errMsg != null);
+    }
+
+	private static void printUsageAndExit(boolean hasErr) {
 		System.out.println("usage: java " + AuthLog2Gantt.class.getName() + " [options]");
-		System.out.println();
 		System.out.println("where options include:");
-		System.out.println(" -i logfile        the input logfile to parse");
-		System.out.println(" -o imagefile      the output image file to write");
-		System.out.println(" -ow width         the width of the output image [pixels]");
-		System.out.println(" -oh height        the height of the output image [pixels]");
-		System.out.println(" -f                to force overwriting already output files");
+		System.out.println(" -i logfile        the input logfile to parse (default: " + DEFAULT_LOG_FILE.getName() + ")");
+		System.out.println(" -o imagefile      the output image file to write (default: " + DEFAULT_IMAGE_FILE.getName() + ")");
+		System.out.println(" -ow width         the width of the output image (default: " + DEFAULT_IMAGE_WIDTH + ") [pixels]");
+		System.out.println(" -oh height        the height of the output image (default: " + DEFAULT_IMAGE_HEIGHT + ") [pixels]");
+		System.out.println(" -ot title         the title in the output image (default: " + DEFAULT_IMAGE_TITLE + ")");
+		System.out.println(" -f                to force overwriting already output files (default: " + DEFAULT_FORCE + ")");
 		System.out.println();
-		System.exit(1);
+		System.exit(hasErr ? 1 : 0);
     }
 
-	public AuthLog2Gantt(File inputFile, File outputFile, boolean forceOverwrite, int width, int height) {
+	public AuthLog2Gantt(File inputFile, File outputFile, boolean forceOverwrite, int width, int height, String title) {
 		IntervalCategoryDataset dataset = createDataset(inputFile);
-		JFreeChart chart = createChart(dataset);
+		JFreeChart chart = createChart(dataset, title);
 		writeOutputImage(chart, outputFile, width, height);
 	}
 
@@ -121,89 +143,52 @@ public class AuthLog2Gantt  {
 	 * @param logfile
 	 * @return the dataset
 	 */
-	public static IntervalCategoryDataset createDataset(File logfile) {
-		HashMap<String, Task> userTask = new HashMap<String, Task>();
+	private IntervalCategoryDataset createDataset(File logfile) {
+		LogFileParser parser = new LogFileParser(logfile);
 
-		LogFileParser.parseFile(logfile);
+		List<Integer> processIds = new ArrayList<Integer>();
+		processIds.addAll(parser.getProcessIds());
+		Collections.sort(processIds);
 
-		List<Integer> sortedList = new ArrayList<Integer>();
-		sortedList.addAll(LogFileParser.entries.keySet());
-		Collections.sort(sortedList);
-
-		final TaskSeries s1 = new TaskSeries("authlog");
-		Iterator<Integer> processIdIterator = sortedList.iterator();
+		// determine the overall start and end date
 		Date startDate = new Date();
 		Date endDate = null;
-
-		while (processIdIterator.hasNext()) {
-			AuthFileEntry entry = LogFileParser.entries.get(processIdIterator.next());
+		for (Iterator<Integer> it = processIds.iterator(); it.hasNext();) {
+			AuthFileEntry entry = parser.getEntry(it.next());
 			if (entry.getLoginTime().before(startDate)) {
 				startDate = entry.getLoginTime();
 				if (endDate == null) {
 					endDate = startDate;
 				}
 			}
-
 			if (entry.getLogoffTime().after(endDate)) {
 				endDate = entry.getLogoffTime();
 			}
 		}
 
-		processIdIterator = sortedList.iterator();
-
-		while (processIdIterator.hasNext()) {
-			AuthFileEntry entry = LogFileParser.entries.get(processIdIterator.next());
-			Task subTask = new Task(entry.getProcessId() + "", entry.getLoginTime(), entry.getLogoffTime());
-			Task t = null;
-			if (userTask.get(entry.getUsername()) == null) {
+		TreeMap<String, Task> userTasks = new TreeMap<String, Task>();
+		for (Iterator<Integer> it = processIds.iterator(); it.hasNext();) {
+			AuthFileEntry entry = parser.getEntry(it.next());
+			String username = entry.getUsername();
+			Task t = userTasks.get(username);
+			if (t == null) {
 				// no existing task for that user so far: -> create one
-				t = new Task(entry.getUsername(), startDate, endDate);
-				userTask.put(entry.getUsername(), t);
-			} else {
-				t = userTask.get(entry.getUsername());
+				t = new Task(username, startDate, endDate);
+				userTasks.put(username, t);
 			}
-
+			Task subTask = new Task(entry.getProcessId() + "", entry.getLoginTime(), entry.getLogoffTime());
 			t.addSubtask(subTask);
-
 		}
 
-		Iterator<Task> tasks = userTask.values().iterator();
-		while (tasks.hasNext()) {
-			s1.add(tasks.next());
+		TaskSeries series = new TaskSeries("authlog");
+		for (Iterator<Task> it = userTasks.values().iterator(); it.hasNext();) {
+			series.add(it.next());
 		}
 
-		final TaskSeriesCollection collection = new TaskSeriesCollection();
-		collection.add(s1);
-		// collection.add(s2);
+		TaskSeriesCollection collection = new TaskSeriesCollection();
+		collection.add(series);
 
 		return collection;
-	}
-
-	/**
-	 * Write output image file based on provided JFreeChart.
-	 *
-	 * @param chart
-	 *            JFreeChart
-	 * @param outputFile
-	 *            file to which JFreeChart will be written
-	 * @param width
-	 *            width of image
-	 * @param height
-	 *            height of image
-	 */
-	public void writeOutputImage(JFreeChart chart, File outputFile, int width, int height) {
-		try {
-			String outputFilename = outputFile.getName().toLowerCase();
-			if (outputFilename.endsWith(".png")) {
-				ChartUtilities.writeChartAsPNG(new FileOutputStream(outputFile), chart, width, height);
-			} else if (outputFilename.endsWith(".jpg") || outputFilename.endsWith(".jpeg")) {
-				ChartUtilities.writeChartAsJPEG(new FileOutputStream(outputFile), chart, width, height);
-			} else {
-				throw new IllegalArgumentException("outputFile's name must end with '.png', '.jpg' or '.jpeg'.");
-			}
-		} catch (IOException ioEx) {
-			System.err.println("Error writing output image file " + outputFile);
-		}
 	}
 
 	/**
@@ -211,18 +196,40 @@ public class AuthLog2Gantt  {
 	 *
 	 * @param dataset
 	 *            the dataset
+	 * @param title
 	 * @return the chart
 	 */
-	private JFreeChart createChart(final IntervalCategoryDataset dataset) {
-		final JFreeChart chart = ChartFactory.createGanttChart(
-				"Gantt Chart Demo", // chart title
-		        "Task", // domain axis label
-		        "Date", // range axis label
-		        dataset, // data
-		        true, // include legend
-		        true, // tooltips
-		        false // urls
-		        );
+	private JFreeChart createChart(IntervalCategoryDataset dataset, String title) {
+		String categoryAxisLabel = "User";
+		String dateAxisLabel = "Date/Time";
+		JFreeChart chart = ChartFactory.createGanttChart(title, categoryAxisLabel, dateAxisLabel, dataset, true, true, false);
 		return chart;
 	}
+
+	/**
+     * Write output image file based on provided JFreeChart.
+     *
+     * @param chart
+     *            JFreeChart
+     * @param outputFile
+     *            file to which JFreeChart will be written
+     * @param width
+     *            width of image
+     * @param height
+     *            height of image
+     */
+    private void writeOutputImage(JFreeChart chart, File outputFile, int width, int height) {
+    	try {
+    		String outputFilename = outputFile.getName().toLowerCase();
+    		if (outputFilename.endsWith(".png")) {
+    			ChartUtilities.writeChartAsPNG(new FileOutputStream(outputFile), chart, width, height);
+    		} else if (outputFilename.endsWith(".jpg") || outputFilename.endsWith(".jpeg")) {
+    			ChartUtilities.writeChartAsJPEG(new FileOutputStream(outputFile), chart, width, height);
+    		} else {
+    			throw new IllegalArgumentException("outputFile's name must end with '.png', '.jpg' or '.jpeg'.");
+    		}
+    	} catch (IOException ioEx) {
+    		System.err.println("Error writing output image file " + outputFile);
+    	}
+    }
 }
