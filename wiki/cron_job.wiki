@@ -1,7 +1,7 @@
 #summary deploying log2gantt to run in a daily cron job
 #labels Phase-Deploy
 
-= Running log2gantt daly =
+= Running log2gantt daily =
 
 For a daily update about what's happening on our server we integrated _log2gantt_ in the [http://logcheck.org/ Logcheck] script.
 
