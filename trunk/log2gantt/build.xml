@@ -1,0 +1,185 @@
+<?xml version="1.0"?>
+<project name="log2gantt" default="main" basedir=".">
+	<description>build and deploy Log2Gantt</description>
+
+	<!--
+	###################################################################
+	##################         Properties           ################### -->
+	<property file="build.local.properties" />
+	<property file="${build.system.properties.file}" />
+	<property name="version" value="devel" />
+
+	<property name="project.title" value="log2gantt" />
+	<property name="project.Title" value="Log2Gantt" />
+	<property name="project.description" value="Log2Gantt paints a gantt graph of the login timespans of different users analyzing /var/log/auth.log." />
+	<property name="project.version" value="${version}" />
+	<property name="project.copyright.year" value="2009" />
+	<property name="project.domain" value="gensthaler.de" />
+	<property name="project.vendor" value="Michael Blume, Max Gensthaler" />
+
+	<property name="mainclass.console" value="log2gantt.AuthLog2Gantt" />
+	<property name="compile.debug" value="true" />
+	<property name="compile.deprecation" value="false" />
+	<property name="compile.optimize" value="true" />
+
+	<!-- Libraries -->
+	<property name="lib.dir" location="${basedir}/lib" />
+	<property name="lib.jfreechart.jarname" value="jfreechart/1.0.13/jfreechart-1.0.13.jar" />
+	<property name="lib.jfreechart.jarfile" location="${lib.dir}/${lib.jfreechart.jarname}" />
+	<property name="lib.jcommon.jarname" value="jfreechart/1.0.13/jcommon-1.0.16.jar" />
+	<property name="lib.jcommon.jarfile" location="${lib.dir}/${lib.jcommon.jarname}" />
+
+	<!-- Folders and files -->
+	<property name="src.dir" location="${basedir}/src" />
+	<property name="src.main.java.dir" location="${src.dir}/main/java" />
+	<property name="src.main.resources.dir" location="${src.dir}/main/resources" />
+	<property name="src.test.dir" location="${src.dir}/test" />
+
+	<property name="build.dir" location="${basedir}/build" />
+	<property name="build.classes.dir" location="${build.dir}/classes" />
+	<property name="build.meta-inf.dir" location="${build.dir}/META-INF" />
+	<property name="dist.dir" location="${basedir}/dist" />
+	<property name="dist.lib.dir" location="${dist.dir}/lib" />
+
+	<property name="build_number.file" location="${basedir}/build.number" />
+
+	<!--
+	###################################################################
+	##################    Filesets and Classpaths   ################### -->
+	<fileset id="lib.fileset" dir="${lib.dir}" description="Libraries needed to build this project.">
+		<include name="${lib.jfreechart.jarname}" />
+		<include name="${lib.jcommon.jarname}" />
+	</fileset>
+
+	<fileset id="build.classes.fileset" dir="${build.classes.dir}" description="Compiled classes without tests.">
+		<include name="**/*.class" />
+		<exclude name="**/*Test.class" />
+	</fileset>
+
+	<path id="class.path">
+		<pathelement path="${currentenv.classpath}" />
+		<fileset refid="lib.fileset" />
+		<fileset dir="" includes="**/*.class" excludes="**/*Test.class"/>
+	</path>
+
+	<!--
+	###################################################################
+	####################         Targets           #################### -->
+	<target name="init">
+		<tstamp>
+			<format property="build.time" pattern="MMM/dd/yyyy hh:mm aa z" />
+		</tstamp>
+		<taskdef name="jarjar" classname="com.tonicsystems.jarjar.JarJarTask" classpath="${lib.dir}/google/jarjar/1.0/jarjar-1.0.jar"/>
+	</target>
+
+	<target name="eclipse.refresh" depends="" description="Refresh the eclipse cache" if="eclipse.running">
+		<eclipse.refreshLocal resource="log2gantt" depth="infinite"/>
+	</target>
+
+	<target name="clean" depends="init" description="Clean up all generated files.">
+		<delete dir="${dist.dir}" />
+		<delete dir="${build.dir}" />
+		<antcall target="eclipse.refresh" />
+	</target>
+
+	<target name="increment-build-number" depends="init" unless="buildnum" description="Increments the build number.">
+		<mkdir dir="${build.classes.dir}" />
+		<buildnumber file="${build_number.file}" />
+		<copy file="${build_number.file}" todir="${build.classes.dir}" />
+		<property name="buildnum" value="${build.number}" />
+	</target>
+
+	<target name="compile" depends="init, increment-build-number" description="Compile java sources.">
+		<mkdir dir="${build.classes.dir}" />
+		<javac classpathref="class.path" destdir="${build.classes.dir}" source="1.5" target="1.5" debug="${compile.debug}" deprecation="${compile.deprecation}" optimize="${compile.optimize}">
+			<src path="${src.main.java.dir}" />
+			<src path="${src.main.resources.dir}" />
+		</javac>
+		<copy todir="${build.classes.dir}" overwrite="true">
+			<fileset dir="${src.main.resources.dir}">
+				<exclude name="nuvola/**" />
+			</fileset>
+		</copy>
+	</target>
+
+    <target name="prepare-jar-meta-if" depends="init">
+		<mkdir dir="${build.meta-inf.dir}" />
+		<copy todir="${build.meta-inf.dir}">
+			<fileset dir="${basedir}" includes="license*.txt readme.txt" />
+		</copy>
+    </target>
+
+	<target name="create-jar" depends="compile, prepare-jar-meta-if" description="Create jar with all classes (no libs).">
+		<mkdir dir="${dist.dir}" />
+		<mkdir dir="${dist.lib.dir}" />
+		<copy todir="${dist.lib.dir}">
+			<fileset refid="lib.fileset" />
+			<flattenmapper />
+		</copy>
+		<pathconvert pathsep=" " dirsep="/" property="manifest.classpath">
+			<map from="${dist.lib.dir}" to="lib" />
+			<path>
+				<fileset dir="${dist.lib.dir}" />
+			</path>
+		</pathconvert>
+		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}.jar" />
+		<jarjar jarfile="${jar.file}">
+		<!--<jar destfile="${jar.file}">-->
+			<fileset refid="build.classes.fileset" />
+			<fileset dir="${build.dir}" includes="META-INF/**" />
+			<keep pattern="${mainclass.console}" />
+			<manifest>
+				<attribute name="Build-Date" value="${build.time}" />
+				<attribute name="Build-Version" value="${project.version} (Build ${buildnum})" />
+				<attribute name="Implementation-Title" value="${project.title}" />
+				<attribute name="Implementation-Version" value="${project.version}" />
+				<attribute name="Implementation-Vendor" value="${project.vendor}" />
+				<attribute name="Main-Class" value="${mainclass.console}" />
+				<attribute name="Class-Path" value="${manifest.classpath}" />
+			</manifest>
+		<!--</jar>-->
+		</jarjar>
+		<antcall target="eclipse.refresh" />
+    </target>
+
+	<target name="create-allinone-jar" depends="compile, prepare-jar-meta-if" description="Create jar with all classes and all used libraries included.">
+		<mkdir dir="${dist.dir}" />
+		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}-allInOne.jar"/>
+		<jarjar jarfile="${jar.file}">
+		<!--<jar destfile="${jar.file}">-->
+			<fileset refid="build.classes.fileset" />
+			<fileset dir="${build.dir}" includes="META-INF/**" />
+			<zipgroupfileset refid="lib.fileset" />
+			<fileset dir="${build.dir}" includes="META-INF/**" />
+			<keep pattern="${mainclass.console}" />
+			<manifest>
+				<attribute name="Build-Date" value="${build.time}" />
+				<attribute name="Build-Version" value="${project.version} (Build ${buildnum})" />
+				<attribute name="Implementation-Title" value="${project.title}" />
+				<attribute name="Implementation-Version" value="${project.version}" />
+				<attribute name="Implementation-Vendor" value="${project.vendor}" />
+				<attribute name="Main-Class" value="${mainclass.console}" />
+				<attribute name="Class-Path" value="${manifest.classpath}" />
+				<attribute name="isAllInOne" value="true" />
+			</manifest>
+		<!--</jar>-->
+		</jarjar>
+		<antcall target="eclipse.refresh" />
+	</target>
+
+	<target name="create-src-jar" depends="init" description="Create a jar file with all sources.">
+		<mkdir dir="${dist.dir}" />
+		<jar destfile="${dist.dir}/${project.title}-${project.version}-src.jar">
+			<fileset dir="${src.main.java.dir}" />
+			<fileset dir="${src.main.resources.dir}" />
+			<fileset dir="${build.dir}" includes="META-INF/**" />
+		</jar>
+		<antcall target="eclipse.refresh" />
+	</target>
+
+	<target name="dist" depends="clean, init, create-jar, create-allinone-jar, create-src-jar">
+	</target>
+
+	<target name="main" depends="clean, init, create-allinone-jar">
+	</target>
+</project>
