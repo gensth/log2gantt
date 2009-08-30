@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<project name="log2gantt" default="main" basedir=".">
+<project name="log2gantt" default="create-allinone-jar" basedir=".">
 	<description>build and deploy Log2Gantt</description>
 
 	<!--
@@ -122,7 +122,7 @@
 				<fileset dir="${dist.lib.dir}" />
 			</path>
 		</pathconvert>
-		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}.jar" />
+		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}-woLibs.jar" />
 		<jarjar jarfile="${jar.file}">
 		<!--<jar destfile="${jar.file}">-->
 			<fileset refid="build.classes.fileset" />
@@ -144,13 +144,12 @@
 
 	<target name="create-allinone-jar" depends="compile, prepare-jar-meta-if" description="Create jar with all classes and all used libraries included.">
 		<mkdir dir="${dist.dir}" />
-		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}-allInOne.jar"/>
+		<property name="jar.file" location="${dist.dir}/${project.title}-${project.version}.jar"/>
 		<jarjar jarfile="${jar.file}">
 		<!--<jar destfile="${jar.file}">-->
 			<fileset refid="build.classes.fileset" />
 			<fileset dir="${build.dir}" includes="META-INF/**" />
 			<zipgroupfileset refid="lib.fileset" />
-			<fileset dir="${build.dir}" includes="META-INF/**" />
 			<keep pattern="${mainclass.console}" />
 			<manifest>
 				<attribute name="Build-Date" value="${build.time}" />
@@ -178,8 +177,5 @@
 	</target>
 
 	<target name="dist" depends="clean, init, create-jar, create-allinone-jar, create-src-jar">
-	</target>
-
-	<target name="main" depends="clean, init, create-allinone-jar">
 	</target>
 </project>
