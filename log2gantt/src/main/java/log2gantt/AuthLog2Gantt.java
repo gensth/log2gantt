@@ -13,6 +13,8 @@ import java.util.TreeMap;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtilities;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.StandardChartTheme;
+import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.data.category.IntervalCategoryDataset;
 import org.jfree.data.gantt.Task;
 import org.jfree.data.gantt.TaskSeries;
@@ -28,8 +30,9 @@ import org.jfree.data.gantt.TaskSeriesCollection;
 public class AuthLog2Gantt  {
 	private static final File DEFAULT_LOG_FILE = new File("auth.log");
 	private static final File DEFAULT_IMAGE_FILE = new File("auth_log_gantt.png");
-	private static final int DEFAULT_IMAGE_WIDTH = 500;
-    private static final int DEFAULT_IMAGE_HEIGHT = 270;
+	private static final int DEFAULT_IMAGE_WIDTH = 600;
+    private static final int DEFAULT_IMAGE_HEIGHT = 0;
+    private static final int DEFAULT_ROW_HEIGHT = 20;
     private static final String DEFAULT_IMAGE_TITLE = null;
 	private static final boolean DEFAULT_FORCE = false;
 
@@ -56,18 +59,18 @@ public class AuthLog2Gantt  {
 	        		printUsageAndExit("The '-o' option is missing a filename.");
 	        	}
 	        	imageFile = new File(args[++i]);
-	        } else if (args[i].equals("-ow")) {
+	        } else if (args[i].equals("-w")) {
 	        	if (i + 1 >= args.length) {
-	        		printUsageAndExit("The '-ow' option is missing the number of pixels.");
+	        		printUsageAndExit("The '-w' option is missing the number of pixels.");
 	        	}
 	        	try {
 	                imageWidth = Integer.parseInt(args[++i]);
                 } catch (NumberFormatException e) {
 	        		printUsageAndExit("Cannot parse width.");
                 }
-	        } else if (args[i].equals("-oh")) {
+	        } else if (args[i].equals("-h")) {
 	        	if (i + 1 >= args.length) {
-	        		printUsageAndExit("The '-oh' option is missing the number of pixels.");
+	        		printUsageAndExit("The '-h' option is missing the number of pixels.");
 	        	}
 	        	try {
 	                imageHeight = Integer.parseInt(args[++i]);
@@ -75,13 +78,15 @@ public class AuthLog2Gantt  {
                 	System.err.println();
 	        		printUsageAndExit("Cannot parse height.");
                 }
-	        } else if (args[i].equals("-ot")) {
+	        } else if (args[i].equals("-t")) {
 	        	if (i + 1 >= args.length) {
-	        		printUsageAndExit("The '-ot' option is missing the title string.");
+	        		printUsageAndExit("The '-t' option is missing the title string.");
 	        	}
 	        	imageTitle = args[++i];
 	        } else if (args[i].equals("-f")) {
 	        	force = true;
+	        } else {
+	        	printUsageAndExit("Unknown argument: " + args[i]);
 	        }
         }
 
@@ -102,7 +107,7 @@ public class AuthLog2Gantt  {
     	if (imageWidth <= 0) {
     		System.err.println("Width must be > 0");
     	}
-    	if (imageHeight <= 0) {
+    	if (imageHeight < 0) {
     		System.err.println("Height must be > 0");
     	}
 
@@ -124,26 +129,36 @@ public class AuthLog2Gantt  {
 		System.out.println("where options include:");
 		System.out.println(" -i logfile        the input logfile to parse (default: " + DEFAULT_LOG_FILE.getName() + ")");
 		System.out.println(" -o imagefile      the output image file to write (default: " + DEFAULT_IMAGE_FILE.getName() + ")");
-		System.out.println(" -ow width         the width of the output image (default: " + DEFAULT_IMAGE_WIDTH + ") [pixels]");
-		System.out.println(" -oh height        the height of the output image (default: " + DEFAULT_IMAGE_HEIGHT + ") [pixels]");
-		System.out.println(" -ot title         the title in the output image (default: " + DEFAULT_IMAGE_TITLE + ")");
+		System.out.println(" -w width          the width of the output image (default: " + DEFAULT_IMAGE_WIDTH + ") [pixels]");
+		System.out.println(" -h height         the height of the output image (default: " + DEFAULT_IMAGE_HEIGHT + ") [pixels]");
+		System.out.println(" -t title          the title in the output image (default: " + DEFAULT_IMAGE_TITLE + ")");
 		System.out.println(" -f                to force overwriting already output files (default: " + DEFAULT_FORCE + ")");
 		System.out.println();
 		System.exit(hasErr ? 1 : 0);
     }
 
 	public AuthLog2Gantt(File inputFile, File outputFile, boolean forceOverwrite, int width, int height, String title) {
-		IntervalCategoryDataset dataset = createDataset(inputFile);
-		JFreeChart chart = createChart(dataset, title);
+		TaskSeriesCollection dataset = createDataset(inputFile);
+		JFreeChart chart = createChart(title, dataset);
+		if (height == 0) {
+			// the height was not explicitly given
+			// -> trying to approximate the height from the DEFAULT_ROW_HEIGHT
+			if (title != null) {
+				height += 23;
+			}
+			height += 41; // top legend border
+			height += dataset.getSeries(0).getItemCount() * DEFAULT_ROW_HEIGHT;
+			height += 4; // bottom border
+		}
 		writeOutputImage(chart, outputFile, width, height);
 	}
 
 	/**
-	 * Creates a sample dataset for a Gantt chart.
+	 * Creates a sample dataset for a gantt chart.
 	 * @param logfile
 	 * @return the dataset
 	 */
-	private IntervalCategoryDataset createDataset(File logfile) {
+	private TaskSeriesCollection createDataset(File logfile) {
 		LogFileParser parser = new LogFileParser(logfile);
 
 		List<Integer> processIds = new ArrayList<Integer>();
@@ -170,16 +185,17 @@ public class AuthLog2Gantt  {
 		for (Iterator<Integer> it = processIds.iterator(); it.hasNext();) {
 			AuthFileEntry entry = parser.getEntry(it.next());
 			String username = entry.getUsername();
-			Task t = userTasks.get(username);
-			if (t == null) {
+			Task task = userTasks.get(username);
+			if (task == null) {
 				// no existing task for that user so far: -> create one
-				t = new Task(username, startDate, endDate);
-				userTasks.put(username, t);
+				task = new Task(username, startDate, endDate);
+				userTasks.put(username, task);
 			}
 			Task subTask = new Task(entry.getProcessId() + "", entry.getLoginTime(), entry.getLogoffTime());
-			t.addSubtask(subTask);
+			task.addSubtask(subTask);
 		}
 
+		// add tasks to series ordered by the username
 		TaskSeries series = new TaskSeries("authlog");
 		for (Iterator<Task> it = userTasks.values().iterator(); it.hasNext();) {
 			series.add(it.next());
@@ -191,18 +207,11 @@ public class AuthLog2Gantt  {
 		return collection;
 	}
 
-	/**
-	 * Creates a chart.
-	 *
-	 * @param dataset
-	 *            the dataset
-	 * @param title
-	 * @return the chart
-	 */
-	private JFreeChart createChart(IntervalCategoryDataset dataset, String title) {
-		String categoryAxisLabel = "User";
-		String dateAxisLabel = "Date/Time";
-		JFreeChart chart = ChartFactory.createGanttChart(title, categoryAxisLabel, dateAxisLabel, dataset, true, true, false);
+	private JFreeChart createChart(String title, IntervalCategoryDataset dataset) {
+		ChartFactory.setChartTheme(StandardChartTheme.createLegacyTheme());
+		BarRenderer.setDefaultShadowsVisible(false);
+		JFreeChart chart = ChartFactory.createGanttChart(title, "User", "Date/Time", dataset, false, false, false);
+		chart.setAntiAlias(true);
 		return chart;
 	}
 

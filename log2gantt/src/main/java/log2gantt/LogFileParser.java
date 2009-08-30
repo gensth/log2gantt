@@ -1,8 +1,21 @@
 package log2gantt;
 
-import java.util.*;
-import java.text.*;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Parses an <code>auth.log</code> file.
@@ -18,36 +31,40 @@ public class LogFileParser {
 	}
 
 	private void parseFile(File f) {
-    	// declared here only to make visible to finally clause
-    	BufferedReader input = null;
-    	try {
-    		// use buffering, reading one line at a time
-    		// FileReader always assumes default encoding is OK!
-    		input = new BufferedReader(new FileReader(f));
-    		String line = null; // not declared within while loop
-    		/*
-    		 * readLine is a bit quirky : it returns the content of a line MINUS
-    		 * the newline. it returns null only for the END of the stream. it
-    		 * returns an empty String if two newlines appear in a row.
-    		 */
-    		while ((line = input.readLine()) != null) {
-    			parseLine(line);
-    		}
-    	} catch (FileNotFoundException ex) {
-    		ex.printStackTrace();
-    	} catch (IOException ex) {
-    		ex.printStackTrace();
-    	} finally {
-    		try {
-    			if (input != null) {
-    				// flush and close both "input" and its underlying FileReader
-    				input.close();
-    			}
-    		} catch (IOException ex) {
-    			ex.printStackTrace();
-    		}
-    	}
-    }
+		// declared here only to make visible to finally clause
+		BufferedReader input = null;
+		try {
+			// use buffering, reading one line at a time
+			// FileReader always assumes default encoding is OK!
+			input = new BufferedReader(new FileReader(f));
+			String line = null; // not declared within while loop
+			/*
+			 * readLine is a bit quirky : it returns the content of a line MINUS
+			 * the newline. it returns null only for the END of the stream. it
+			 * returns an empty String if two newlines appear in a row.
+			 */
+			while ((line = input.readLine()) != null) {
+				try {
+	                parseLine(line);
+                } catch (ParseException e) {
+	                e.printStackTrace();
+                }
+			}
+		} catch (FileNotFoundException ex) {
+			ex.printStackTrace();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			try {
+				if (input != null) {
+					// flush and close both "input" and its underlying FileReader
+					input.close();
+				}
+			} catch (IOException ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
 
 	/**
 	 * Parses an <code>auth.log</code> line.
@@ -56,68 +73,64 @@ public class LogFileParser {
 	 *
 	 * <pre>
 	 * Jan 27 21:19:46 localhost sshd[25065]: (pam_unix) session opened for user max by (uid=0)
+	 * Aug 30 16:39:01 localhost CRON[27747]: (pam_unix) session opened for user root by (uid=0)
+	 * Aug 30 16:39:02 localhost CRON[27747]: (pam_unix) session closed for user root
 	 * </pre>
+	 * @throws ParseException thrown if the leading date could not be parsed
 	 */
-	private void parseLine(String line) {
-		try {
-			// *******************************************************************
-			// extract the date component:
-			// *******************************************************************
-			String dateStr = line.substring(0, line.indexOf("localhost") - 1).trim();
-			// Get the timestamp formater with the format of an auth-log-line:
-			DateFormat formatter = new SimpleDateFormat("MMM dd HH:mm:ss");
-			Date date = (Date) formatter.parse(dateStr);
-			// Since we don't have the year information, we get it from the system:
-			Calendar dateCal = new GregorianCalendar();
-			int currentYear = dateCal.get(Calendar.YEAR);
-			dateCal.setTime(date);
-			dateCal.set(Calendar.YEAR, currentYear);
-			date = dateCal.getTime();
+	private void parseLine(String line) throws ParseException {
+		String regex = "^([\\w]{3} \\d{2} \\d{2}:\\d{2}:\\d{2}) \\S+ (\\w+)\\[(\\d+)\\]: (.*)$";
+		Matcher matcher = Pattern.compile(regex).matcher(line);
+		if (!matcher.matches()) {
+			return;
+		}
 
-			// *******************************************************************
-			// extract the daemon component:
-			// *******************************************************************
-			String daemonStr = line.substring(line.indexOf("localhost") + 10, line.indexOf("["));
+		String dateStr = matcher.group(1);
+		// Get the timestamp formater with the format of an auth-log-line:
+		DateFormat formatter = new SimpleDateFormat("MMM dd HH:mm:ss");
+		Date date = (Date) formatter.parse(dateStr);
+		// Since we don't have the year information, we get it from the system:
+		Calendar dateCal = new GregorianCalendar();
+		int currentYear = dateCal.get(Calendar.YEAR);
+		dateCal.setTime(date);
+		dateCal.set(Calendar.YEAR, currentYear);
+		date = dateCal.getTime();
 
-			// *******************************************************************
-			// extract the processId:
-			// *******************************************************************
-			String processStr = line.substring(line.indexOf("[") + 1, line.indexOf("]"));
-			Integer processId = Integer.valueOf(processStr);
+		String daemonStr = matcher.group(2);
 
-			String username = "";
-			if (line.indexOf("for user ") > 0) {
-				// we need a simple way to get the string till the next space
-				username = line.substring(line.indexOf("for user ") + 9, line.length());
-				// we look for spaces
-				StringTokenizer st = new StringTokenizer(username, " ");
+		String processStr = matcher.group(3);
+		Integer processId = Integer.valueOf(processStr);
 
-				if (st.hasMoreTokens()) {
-					// the first is the username (we cut of the first part of the string)
-					username = st.nextToken();
-				}
+		String msg = matcher.group(4); // this is the rest of the line after ':'
+
+		String username = "";
+		int startIdx = msg.indexOf(" for user ");
+		if (startIdx >= 0) {
+			startIdx += 10;
+			int endIdx = msg.indexOf(" by ", startIdx);
+			if (endIdx < 0) {
+				endIdx = msg.length();
 			}
-			// *******************************************************************
-			// what type of line is it?
-			// *******************************************************************
-			if (line.indexOf("session opened for user") > 0) {
-				// a new session was opened!
-				// -> create a new record
-				AuthFileEntry entry = new AuthFileEntry(processId, username, date, date, daemonStr, "");
-				entries.put(processId, entry);
-				// System.out.println("processId: "+processId);
-			} else if (line.indexOf("session closed for user") > 0) {
-				// a session is closed
-				// add last information to existing record!
-				AuthFileEntry entry = entries.get(processId);
-				if (entry != null) {
-					entry.setLogoffTime(date);
-				}
-			} else {
-				// System.err.println("line ignored!");
+			username = msg.substring(startIdx, endIdx).trim();
+		}
+
+		// *******************************************************************
+		// what type of line is it?
+		// *******************************************************************
+		if (msg.indexOf("session opened for user") > 0) {
+			// a new session was opened!
+			// -> create a new record
+			AuthFileEntry entry = new AuthFileEntry(processId, username, date, date, daemonStr, "");
+			entries.put(processId, entry);
+		} else if (line.indexOf("session closed for user") > 0) {
+			// a session is closed
+			// add last information to existing record!
+			AuthFileEntry entry = entries.get(processId);
+			if (entry != null) {
+				entry.setLogoffTime(date);
 			}
-		} catch (ParseException e) {
-			System.err.println(e.getMessage());
+		} else {
+			// System.err.println("line ignored!");
 		}
 	}
 
