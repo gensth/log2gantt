@@ -132,7 +132,7 @@ public class AuthLog2Gantt  {
 		System.out.println(" -w width          the width of the output image (default: " + DEFAULT_IMAGE_WIDTH + ") [pixels]");
 		System.out.println(" -h height         the height of the output image (default: " + DEFAULT_IMAGE_HEIGHT + ") [pixels]");
 		System.out.println(" -t title          the title in the output image (default: " + DEFAULT_IMAGE_TITLE + ")");
-		System.out.println(" -f                to force overwriting already output files (default: " + DEFAULT_FORCE + ")");
+		System.out.println(" -f                to force overwriting the output file (default: " + DEFAULT_FORCE + ")");
 		System.out.println();
 		System.exit(hasErr ? 1 : 0);
     }
