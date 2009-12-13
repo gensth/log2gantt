@@ -73,6 +73,7 @@
 	</target>
 
 	<target name="eclipse.refresh" depends="" description="Refresh the eclipse cache" if="eclipse.running">
+		<echo message="INFO: The eclipse.refreshLocal task requires the JRE context of the Eclipse workspace. See the Ant JRE tab of your Ant launch configuration." />
 		<eclipse.refreshLocal resource="log2gantt" depth="infinite"/>
 	</target>
 
