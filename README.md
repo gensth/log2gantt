@@ -25,9 +25,9 @@ The content of this project is licensed under the [GNU Lesser GPL](https://githu
 
 ## Quickstart
 
-*   download the current version of `log2gantt-*.jar`
+*   build executing `gradle` and find the executable jar in `build/libs`
 *   execute on the command line:  
-    `java -jar log2gantt-*.jar -i /var/log/auth.log`)
+    `java -jar build/libs/log2gantt-*.jar -i /var/log/auth.log`)
 *   eventually include it in a [cron job](#deploy_logcheck) and send the output image by mail to the server admin
 
 ## Usage
