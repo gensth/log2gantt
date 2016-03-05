@@ -1,0 +1,49 @@
+apply plugin: 'java'
+apply from: 'gradle/eclipse.gradle'
+apply plugin: 'application'
+
+sourceCompatibility = 1.5
+targetCompatibility = 1.5
+group = 'log2gantt'
+version = '0.1'
+mainClassName = 'log2gantt.AuthLog2Gantt'
+
+defaultTasks 'fatJar'
+
+// use UTF-8 encoding for all sources
+[compileJava, compileTestJava]*.options.collect {options -> options.encoding = 'UTF-8'}
+//tasks.withType(JavaCompile) { options.encoding = 'UTF-8' }
+
+// show deprecation and debug messages
+configure([compileJava, compileTestJava]) {
+    options.deprecation = true
+    options.debug = true
+}
+
+repositories {
+    mavenCentral()
+}
+
+// adding compile-time dependency
+dependencies {
+    compile group: 'org.jfree', name: 'jfreechart', version: '1.0.19'
+    //testCompile group: 'junit', name: 'junit', version: '4.+'
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+        attributes 'Built-By': System.properties['user.name']
+        attributes 'Built-Timestamp': String.valueOf(System.currentTimeMillis())
+        attributes 'Created-By': 'Java VM ' + System.properties['java.vm.version'] + ' (' + System.properties['java.vm.vendor'] + ')'
+        attributes 'Implementation-Title': group
+        attributes 'Implementation-Version': version
+    }
+}
+
+task fatJar(type: Jar) {
+    manifest.from jar.manifest
+    classifier = 'all'
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}

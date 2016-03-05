@@ -1,0 +1,29 @@
+//import org.gradle.api.internal.artifacts.dependencies.DefaultSelfResolvingDependency
+
+allprojects {
+    apply plugin: "eclipse"
+
+//    // configure additional Eclipse settings
+//    eclipse.jdt.file.withProperties { properties ->
+//        properties.load uri("$rootDir/DevTools/eclipse_project_template/.settings/org.eclipse.jdt.core.prefs").toURL().openStream()
+//    }
+//    tasks.eclipse << {
+//        copy {
+//            from("$rootDir/DevTools/eclipse_project_template/.settings") { exclude 'org.eclipse.jdt.core.prefs' }
+//            into '.settings'
+//        }
+//    }
+    // make sure .settings is deleted completely on cleanEclipse
+    tasks.cleanEclipse << { delete '.settings' }
+}
+
+//configure(javaProjects()) {
+//    eclipse {
+//        classpath {
+//            plusConfigurations.add(configurations.detachedConfiguration(new DefaultSelfResolvingDependency(files { sourceSets*.resources*.srcDirs*.findAll { it.isDirectory() }} )))
+//            file.whenMerged { classpath ->
+//                classpath.entries.removeAll { it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder && it.path.endsWith('/resources') }
+//            }
+//        }
+//    }
+//}
